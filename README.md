@@ -1,4 +1,8 @@
 # ESP-3D-Scanner
+
+## UPDATE : Working code for 50 cams uploaded to "ESP_Version_3 2" 
+
+
 ### Proof of concept for an array of ESP32's used as a photogrammetry 3D-Scanner
 Little disclaimer: I'm a total noob. But I figured this is actually so easy, other total beginners might give it a shot, thus it might be a little over explained for some.
 
