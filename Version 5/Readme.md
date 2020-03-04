@@ -1,4 +1,4 @@
-#Version 5
+# Version 5
 
 Currently in use
 
@@ -26,14 +26,14 @@ After fallback is triggered use udp commands to store your credentials in EEPROM
  - use Package Sender or similar software to send UDP commands to 233.233.233.233, 6666 without resend delay
  - mobile apps that work well on iOS : Package Sender, UDP/TCP/REST 
  
-###commands: 
+### commands: 
 #### Set Wifi SSID
 WL:[YOURWIFISSID] (As in "WL:Examplenetwork"
  
  #### Set Wifi Password
 PS:[YOURWIFIPASSWORD] (As in "WL:ExamplePassw0rd"
 
-####Take images and send to ftp:
+#### Take images and send to ftp:
  ALLimgtoftp
 
 #### Set Brightness of onboard LEDs
@@ -56,5 +56,5 @@ in order to know which cam is which you can ask a module to identify itself via 
 [moduleID]id  -> module blinks for 5 Seconds and sends its ip via UDP
 
 
-##OTA
+## OTA
 Credentials for OTA via platformio are provided at the end of platformio.ini - comment out the last lines, change the ip address to the module's ip and hit upload
