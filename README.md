@@ -1,8 +1,21 @@
 # ESP-3D-Scanner
 
-## UPDATE : Working code for 50 cams uploaded to "ESP_Version_3 2" 
-I figured i leave the original version on here - it works, is a little easier for beginners and doesnt need a special fixture
+## Versions
+I figured i leave the original version on here - it works, is a little easier for beginners and doesn't need a special fixture
 
+Version 3_2
+- up to 60 cams
+passive upload (files have to be pulled via FTP script
+
+Version 4
+- not working
+- experimental BLE mesh 
+
+Verison 5
+- 60 cams (or whatever your wifi can handle)
+- Trigger via UDP
+- Config via UDP
+- Active upload via FTP (trigger scan -> upload)
 
 ### Proof of concept for an array of ESP32's used as a photogrammetry 3D-Scanner
 Little disclaimer: I'm a total noob. But I figured this is actually so easy, other total beginners might give it a shot, thus it might be a little over explained for some.
