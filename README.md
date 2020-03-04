@@ -11,11 +11,13 @@ Version 4
 - not working
 - experimental BLE mesh 
 
-Verison 5
+Verison 5 (current version)
 - 60 cams (or whatever your wifi can handle)
 - Trigger via UDP
 - Config via UDP
 - Active upload via FTP (trigger scan -> upload)
+- OTA updates
+
 
 ### Proof of concept for an array of ESP32's used as a photogrammetry 3D-Scanner
 Little disclaimer: I'm a total noob. But I figured this is actually so easy, other total beginners might give it a shot, thus it might be a little over explained for some.
