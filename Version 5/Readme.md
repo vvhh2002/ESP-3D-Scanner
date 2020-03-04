@@ -11,8 +11,8 @@ For hardware setup see readme in main folder. If you want to use more cameras yo
 - Change fallback credentials according to your network
 - Change standard ip to fit your network (192.168.2. / 127.0.0. / ... )
 - if needed change ftp credentials 
-- Each module need a hard coded moduleID 
-- Depending which camera module you have (OV2640 /OV 3660) you have to uncomment / comment out CAM_Module
+- Each module needs a hard coded moduleID 
+- Depending on which camera module you have (OV2640 /OV 3660) you have to uncomment / comment out CAM_Module
 
 ### FTP setup
 - setup and run a FTP server on a computer in your personal network (credentials for ip and user credentials must be changed before upload)
@@ -27,6 +27,7 @@ After fallback is triggered use udp commands to store your credentials in EEPROM
  - mobile apps that work well on iOS : Package Sender, UDP/TCP/REST 
  
 ### commands: 
+
 #### Set Wifi SSID
 WL:[YOURWIFISSID] (As in "WL:Examplenetwork"
  
