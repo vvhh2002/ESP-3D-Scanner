@@ -36,6 +36,10 @@ PS:[YOURWIFIPASSWORD] (As in "WL:ExamplePassw0rd"
 
 #### Take images and send to ftp:
  ALLimgtoftp
+ 
+ or 
+ 
+ [moduleID]toftp - to trigger single module
 
 #### Set Brightness of onboard LEDs
 BR:[value] (1-255) - good results achieved with 80 for light skin
@@ -56,6 +60,9 @@ DL:[value] (0-255) - 1 works fine
 in order to know which cam is which you can ask a module to identify itself via its moduleID. 
 [moduleID]id  -> module blinks for 5 Seconds and sends its ip via UDP
 
+#### Enable OTA
+
+ALLota /[moduleID]ota
 
 ## OTA
 Credentials for OTA via platformio are provided at the end of platformio.ini - comment out the last lines, change the ip address to the module's ip and hit upload
