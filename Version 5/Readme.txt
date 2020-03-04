@@ -1,4 +1,4 @@
-# Version 5
+#Version 5
 
 Currently in use
 
@@ -9,6 +9,7 @@ For hardware setup see readme in main folder. If you want to use more cameras yo
 ### Initial code upload 
 #### main.cpp: 
 - Change fallback credentials according to your network
+- Change standard ip to fit your network (192.168.2. / 127.0.0. / ... )
 - if needed change ftp credentials 
 - Each module need a hard coded moduleID 
 - Depending which camera module you have (OV2640 /OV 3660) you have to uncomment / comment out CAM_Module
@@ -53,3 +54,7 @@ DL:[value] (0-255) - 1 works fine
 #### ID single camera module
 in order to know which cam is which you can ask a module to identify itself via its moduleID. 
 [moduleID]id  -> module blinks for 5 Seconds and sends its ip via UDP
+
+
+##OTA
+Credentials for OTA are provided at the end of platformio.ini - comment out the 
