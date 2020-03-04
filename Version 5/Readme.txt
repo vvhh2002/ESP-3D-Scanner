@@ -57,4 +57,4 @@ in order to know which cam is which you can ask a module to identify itself via 
 
 
 ##OTA
-Credentials for OTA are provided at the end of platformio.ini - comment out the 
+Credentials for OTA via platformio are provided at the end of platformio.ini - comment out the last lines, change the ip address to the module's ip and hit upload
