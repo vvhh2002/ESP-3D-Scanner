@@ -1,7 +1,7 @@
 # ESP-3D-Scanner
 
 ## Versions
-I figured i leave the original version on here - it works, is a little easier for beginners and doesn't need a special fixture
+I figured I leave the original version here (PoC) - it works, is a little easier for beginners and doesn't need a special fixture
 
 Version 3
 - up to 60 cams
