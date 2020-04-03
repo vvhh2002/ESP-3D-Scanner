@@ -3,21 +3,25 @@
 ## Versions
 I figured i leave the original version on here - it works, is a little easier for beginners and doesn't need a special fixture
 
-Version 3_2
+Version 3
 - up to 60 cams
-passive upload (files have to be pulled via FTP script
+passive upload (files have to be pulled via FTP script)
 
 Version 4
 - not working
 - experimental BLE mesh 
 
-Verison 5 (current version)
+Verison 5 
 - 60 cams (or whatever your wifi can handle)
 - Trigger via UDP
 - Config via UDP
 - Active upload via FTP (trigger scan -> upload)
 - OTA updates
 
+Verion 6 
+ - http update from AWS S3 bucket ("ALLupdate") 
+ - setup with Medusa utility app neccesary 
+ 
 
 ### Proof of concept for an array of ESP32's used as a photogrammetry 3D-Scanner
 Little disclaimer: I'm a total noob. But I figured this is actually so easy, other total beginners might give it a shot, thus it might be a little over explained for some.
