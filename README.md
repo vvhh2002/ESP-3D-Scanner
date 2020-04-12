@@ -4,7 +4,7 @@
 I figured I leave the original version here (PoC) - it works, is a little easier for beginners and doesn't need a special fixture
 
 Version 3
-- depricated
+-depricated
 - up to 60 cams
 passive upload (files have to be pulled via FTP script)
 
