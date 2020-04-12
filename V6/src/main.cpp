@@ -1,33 +1,36 @@
 /******************************************************************************
-Versioin 4 Controll functions via UDP
+Versioin 6 Controll functions via UDP
 
 Device setup: 
 
 Connect 5V to 5V, GND to GND
-TODO: Save counter and brightness in eeprom
+TODO: typcasting 
+
+License 
 ******************************************************************************/
 
-//#include "ArduinoOTA.h"
-#include "Update.h"
+
+
 #include <WiFi.h>
 #include <WiFiClient.h>
-#include "esp_camera.h"
-
-#include "soc/soc.h"           //disable brownout problems 
-#include "soc/rtc_cntl_reg.h"  //disable brownout problems 
-      
 #include "WiFiUdp.h"
-  
 #include "ESP32_FTPClient.h"
+
+#include "esp_camera.h"
+#include "qrcode_recoginize.h"
+
+#include "soc/soc.h"           
+#include "soc/rtc_cntl_reg.h"  
+
 #include "EEPROM.h"
 #include "esp32-hal-psram.h"
-#include "qrcode_recoginize.h"
 
 #include "esp32-hal-log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "string.h" 
-#include "strings.h"
+
+#include "Update.h"
 
 #define DEGUB_ESP
 
@@ -43,26 +46,25 @@ TODO: Save counter and brightness in eeprom
   #define DBG(...)
 #endif
 
-
-
 //EEPROM adresses
-byte Countaddr = 200;
-byte Brightaddr = 201;
-byte Qualityaddr = 202;
-byte updelayAddr = 203;
-byte connCountAddr = 204;
-byte bootcountAddr = 205;
-byte moduleNraddress = 209;
-int ftpAddr = 300;
-byte ov3660addr = 214;
-int ssidAddr = 0;
-byte passAddr = 100;
-byte configModeAddr = 110;
+byte Countaddr = 0;
+byte Brightaddr = 10;
+byte Qualityaddr = 20;
+byte updelayAddr = 30;
+byte connCountAddr = 40;
+byte bootcountAddr = 50;
+byte moduleNraddress = 60;
+int ftpAddr = 70;
+byte ov3660addr = 100;
+byte ssidAddr = 101;
+byte passAddr = 151;
+byte configModeAddr = 200;
 
 //FTP credentials
 char ftpip[] = "";
 char ftp_user[] = "Medusa";
 char ftp_pass[]   = "Medusa";
+ESP32_FTPClient ftp (ftpip, ftp_user, ftp_pass);
 
 // UDP
 uint16_t port = 6666;
@@ -71,16 +73,16 @@ IPAddress groupIpAddress(233,233,233,233);
 unsigned long tim=micros();
 unsigned long tic=micros();
 int packageCount = 0;
-int bootcount = 0;
+byte bootcount = 0;
 int repeats;
 int mtime;
 
+//camera stuff
 camera_fb_t *fb = NULL;  //frame buffer 
 static camera_config_t camera_config; //cam variables
 
 WiFiUDP Udp;
 WiFiClient client;
-ESP32_FTPClient ftp (ftpip, ftp_user, ftp_pass);
 
 //buffers
 char packetBuffer[128]; //buffer to hold incoming packet
@@ -93,27 +95,27 @@ String data_type_str;
 // Voids
 void photo();
 void dimLED();
-void blinkBurst();
+void blinkBurst(int, int);
 void FTPUpload();
 void sortGrouping();
 void direct();
-void parseData();
-void dump_info();
-void dump_cells();
-void dump_data();
+void convertPayload();
+void sendIP();
 void execOTA();
+void sendModuleNr();
 
 //variables
+long contentLength = 0;
 int moduleNumber; 
-int freq = 5000;
+int freq = 5000; //ledc
 byte brightness = 3;
 byte bbrightness;
 byte jpegQ = 3;
-byte counter = 0; //image counter - reboot sets filename to 1 again
+byte counter = 0; //image counter  image number - camera id - qq
 byte ledCHannel = 2;
-byte res = 8;
+byte res = 8; //ledc
 byte ledPin = 4;
-byte updelay;
+byte updelay; //waiting time for upload based on module number and multiplicator updelay
 
 //flags
 bool is3660 = false;
@@ -121,37 +123,30 @@ bool isSetUp;
 bool startqr = false;
 bool OTA_flag = false;
 bool iignore = false;
-
-
-
-// UPDATE
-// Variables to validate
-// response from S3
-long contentLength = 0;
 bool isValidContentType = false;
 
-
 // S3 Bucket Config
-String host = "YOUR AWS BUCKET HERE"; // Host => bucket-name.s3.region.amazonaws.com
+String host = "YOUR BUCKET"; // Host => bucket-name.s3.region.amazonaws.com
 int udport = 80; // Non https. For HTTPS 443. As of today, HTTPS doesn't work.
-String bin = "/YOUR FILENAME"; // bin file name with a slash in front.
+String bin = "/firmware.bin"; // bin file name with a slash in front.
 
 // Utility to extract header value from headers
-String getHeaderValue(String header, String headerName) {
+String getHeaderValue(String header, String headerName) 
+{
   return header.substring(strlen(headerName.c_str()));
 }
 
 
 //---------------------------------------------------
+
 void setup()
 {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 #ifdef DEGUB_ESP
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   esp_log_level_set("*", ESP_LOG_VERBOSE);  
 #endif
-
-
 
 //LED Stuff
 ledcAttachPin(ledPin, ledCHannel);
@@ -159,39 +154,83 @@ ledcSetup(ledCHannel, freq, res);
 
 //Find Group
 sortGrouping();
-//Debug
 
-
-//EEPROM
-
+//Load settings from eeprom // check for extreme values
 EEPROM.begin(EEPROM_SIZE);
 
 isSetUp = EEPROM.readBool(configModeAddr);
 
-Serial.println("configmode in EEEPROM: " + isSetUp);
 char ssid[EEPROM.readString(ssidAddr).length() + 1];
 EEPROM.readString(ssidAddr).toCharArray(ssid, EEPROM.readString(ssidAddr).length()+1);
+Serial.println("SSID in EEPROM: " + EEPROM.readString(ssidAddr) +"xxx ");
 
 char pass[EEPROM.readString(passAddr).length() +1];
-EEPROM.readString(passAddr).toCharArray(pass, EEPROM.readString(passAddr).length());
-//Serial.println("PASS in EEPROM: " + EEPROM.readString(passAddr) +"xxx ");
+EEPROM.readString(passAddr).toCharArray(pass, EEPROM.readString(passAddr).length()+1);
+Serial.println("PASS in EEPROM: " + EEPROM.readString(passAddr) +"xxx ");
+
 ftpip[EEPROM.readString(ftpAddr).length()];
 EEPROM.readString(ftpAddr).toCharArray(ftpip,EEPROM.readString(ftpAddr).length()+1);
+
+// check for valid wifi ssid
+ if( *ssid == 0x00 || strlen(ssid) > 31) {
+        log_e("NO SSID IN EEPROM!");
+        isSetUp = false;
+        DBG("SSID ERROR");
+}
+// check for valid wifi pass
+if(pass && strlen(pass) > 64) {
+        log_e("passphrase too long!");
+        isSetUp = false;
+        DBG("PASS error");
+} 
 
 moduleNumber = EEPROM.read(moduleNraddress);
 
 is3660 = EEPROM.readBool(ov3660addr);
-counter = EEPROM.read(Countaddr);
-brightness = EEPROM.read(Brightaddr);
-jpegQ = EEPROM.read(Qualityaddr);
-updelay = EEPROM.read(updelayAddr);
+  if (is3660 == true)
+  {
+    DBG("Camera: OV3660");
+  }
+  else
+  {
+    DBG("Camera: OV2640");
+  }
 
-bootcount = EEPROM.readInt(bootcountAddr);
+counter = EEPROM.read(Countaddr);
+ if (counter == 255)
+  {
+    counter = 0;
+    EEPROM.write(Countaddr, counter);
+    EEPROM.commit();
+  }  
+
+brightness = EEPROM.read(Brightaddr);
+
+jpegQ = EEPROM.read(Qualityaddr);
+  if (jpegQ == 0 || jpegQ > 254)
+  {
+    jpegQ = 4;
+  }
+
+updelay = EEPROM.read(updelayAddr);
+  if (updelay > 20)
+  {
+    updelay = 1;
+    EEPROM.write(updelayAddr, 2);
+    EEPROM.commit();
+  }
+
+bootcount = EEPROM.read(bootcountAddr);
+
+if (bootcount >10){
+  DBG("Bootcount too high");
+  isSetUp = false;
+}
 
 Serial.println("EEPROM moduleNr: " + moduleNumber);
 Serial.printf("xxx");
-
-//use lq camera settings if the module credentials are not set yet.
+ //isSetUp = false;
+//use low quality camera settings if the module credentials are not set yet -> start qr recogniser.
 if (isSetUp == false)
 {
   camera_config.ledc_channel = LEDC_CHANNEL_0;
@@ -209,12 +248,12 @@ if (isSetUp == false)
   camera_config.pin_vsync    = 25;
   camera_config.pin_href     = 23;
   camera_config.pin_sscb_sda = 26;
-  camera_config.pin_sscb_scl = 27;
+  camera_config.pin_sscb_scl = 27; 
   camera_config.pin_pwdn     = 32;
   camera_config.pin_reset    = -1;
   camera_config.xclk_freq_hz = 10000000;
   camera_config.pixel_format = PIXFORMAT_GRAYSCALE;
-  camera_config.frame_size = FRAMESIZE_VGA;  // set picture size, FRAMESIZE_VGA (640x480)
+  camera_config.frame_size = FRAMESIZE_QVGA;  // set picture size, FRAMESIZE_VGA (640x480)
   camera_config.jpeg_quality = 15;           // quality of JPEG output. 0-63 lower means higher quality
   camera_config.fb_count = 1;                // 1: Wait for V-Synch // 2: Continous Capture (Video)
   
@@ -223,21 +262,47 @@ if (isSetUp == false)
   {
     DBG("Camera init failed with error 0x%x");
     DBG(err);
-    
+    blinkBurst(2, 50);
     delay(3000);
     ESP.restart();
     return;
-  }          
+  }       
+  //check for camera module   
+  sensor_t * s = esp_camera_sensor_get();
+    
+  if (s->id.PID == OV3660_PID)
+  {  
+    s->set_vflip(s, 1);   
+    
+    EEPROM.writeBool(ov3660addr, 1); 
+    EEPROM.commit();
+    if (is3660 == false) 
+    {
+      ESP.restart();
+    }
+  }
+  else
+  {
+    EEPROM.writeBool(ov3660addr, 0);
+    EEPROM.commit();
+    if (is3660 == true)
+    {
+      ESP.restart();
+    }
+  }
+  bootcount = 0;
+  EEPROM.writeBool(bootcountAddr, 0);
+  EEPROM.commit();
   app_qr_recognize(&camera_config);
-   payload_ready = false;
-
+  payload_ready = false;
+  //indicate QR mode ready
+  blinkBurst(4, 450);
 }
 
 //Use hq camera settings once the module is credentials are set.
 if (isSetUp == true)
 {
-  //Cam config normal USE
-  
+  //Cam config scan mode
   camera_config.ledc_channel = LEDC_CHANNEL_0;
   camera_config.ledc_timer   = LEDC_TIMER_0;
   camera_config.pin_d0       = 5;
@@ -270,14 +335,13 @@ if (isSetUp == true)
   camera_config.jpeg_quality = jpegQ;           // quality of JPEG output. 0-63 lower means higher quality
   camera_config.fb_count = 1;              // 1: Wait for V-Synch // 2: Continous Capture (Video)
 
-
   // camera init
   esp_err_t err = esp_camera_init(&camera_config);
   if (err != ESP_OK)
   {
     DBG("Camera init failed with error 0x%x");
     DBG(err);
-
+    blinkBurst(2, 50);
     EEPROM.writeBool(ov3660addr, false);
     EEPROM.commit();
     delay(3000);
@@ -285,42 +349,41 @@ if (isSetUp == true)
     return;
   } 
     //Check sensor variant / starts with 0v2640 if 3660 is detected set flag  in eeprom and reboot
-    sensor_t * s = esp_camera_sensor_get();
+  sensor_t * s = esp_camera_sensor_get();
     
-  if (s->id.PID == OV3660_PID)
-  {  
-    s->set_vflip(s, 1);   
-    
-    EEPROM.writeBool(ov3660addr, 1); 
-    EEPROM.commit();
-    if (is3660 == false) 
-    {
-      ESP.restart();
-    }
-  }
-  else
-  {
-    EEPROM.writeBool(ov3660addr, 0);
-    EEPROM.commit();
-    if (is3660 == true)
-    {
-      ESP.restart();
-    }
-  } 
+        if (s->id.PID == OV3660_PID)
+        {  
+          s->set_vflip(s, 1);   
+          
+          EEPROM.writeBool(ov3660addr, 1); 
+          EEPROM.commit();
+          if (is3660 == false) 
+          {
+            ESP.restart();
+          }
+        }
+        else
+        {
+          EEPROM.writeBool(ov3660addr, 0);
+          EEPROM.commit();
+          if (is3660 == true)
+          {
+            ESP.restart();
+          }
+        } 
 
-//Init wifi / 
-    
+//connect to wifi / 
   WiFi.begin( ssid, pass );
   WiFi.setSleep(false);
+  DBG("\nBootcount: " + bootcount);
   DBG("\nConnecting to WiFi");
-    
+
   while ( WiFi.status() != WL_CONNECTED && millis() < CON_TIMEOUT )
   {
     ledcWrite(ledCHannel,10);
     delay(500);
     Serial.printf(".");
     ledcWrite(ledCHannel,0);
-  
   }
 
     if( !WiFi.isConnected() )
@@ -328,59 +391,63 @@ if (isSetUp == true)
       DBG("Failed to connect to WiFi, going to restart");
       digitalWrite(4, LOW);
       delay(50);
-      ESP.restart(); 
+      bootcount++;
+      EEPROM.write(bootcountAddr, bootcount);
+      EEPROM.commit();
+      ESP.restart();
     }
 
-    DBG("");
-    DBG("WiFi connected with ip ");
+    DBG("\nWiFi connected with ip ");
+
     DBG( WiFi.localIP() );
     DBG(WiFi.SSID());
     DBG("\nStarting connection to UDP server...");
     Udp.beginMulticast( groupIpAddress, 6666);
-
-    Serial.println("Setting up FTP");
-    
-
+ 
     if(psramFound())
     {
-      Serial.println("PSRAM found and loaded");
+      DBG("PSRAM found and loaded");
     }
+    bootcount = 0;
+    EEPROM.writeByte(bootcountAddr, 0);
+    EEPROM.commit();
+    //indicate Scanmode ready
+    blinkBurst(3, 600);
+    sendIP();
+    DBG("MODULENR");
+    Serial.println( moduleNumber);
 
-  }
-
+   // sendIP();
+   // sendModuleNr();
+ 
+}
 }
 
 //---------------------------FUNCTIONS-------------------------
 
 
-
-void photo() 
+void photo() //capture image
 {
   fb = esp_camera_fb_get();
-  
   DBG("Camera capture success!");
   counter++;
   EEPROM.write(Countaddr, counter);
   EEPROM.commit();
- 
   return ;
 }
 
-
-
-void blinkBurst(int repeats, int mtime)
+void blinkBurst(int repeats, int mtime) //indicate what module is doing
 {
   for (int i = 0; i < repeats; i++)
   {
-    ledcWrite(ledCHannel, 50);
+    ledcWrite(ledCHannel, 20);
     delay(mtime);
     ledcWrite(ledCHannel,0);
     delay(mtime);
   }
 }
 
-
-void sortGrouping()
+void sortGrouping() //assign group letter my modulenr for grouped behavior 
 {
   if (moduleNumber > 0 && moduleNumber < 11) group = "A";
   else if (moduleNumber > 10 && moduleNumber < 21) group = "B";
@@ -393,11 +460,11 @@ void sortGrouping()
   else if (moduleNumber > 80 && moduleNumber < 91) group = "I";
   else if (moduleNumber > 90 && moduleNumber < 101) group = "J";
   else if (moduleNumber > 100 && moduleNumber < 111) group = "K";
-  Serial.println("Group: " + String(group));
+ DBG("Group: " + String(group));
   return;
 }
 
-void direct()
+void direct() //send framebuffer as file via ftp
 {
   String pic_name = "CAM " + String(moduleNumber); 
   String path = "/images/" + String(counter) +"-"+String(pic_name) +"at Q " +String(jpegQ)+ ".jpg"; 
@@ -423,22 +490,23 @@ void direct()
 
 
 //----------------------------------- LOOP  --------------------
-//Listen to UDP
+
 void loop()
 {
-  if (isSetUp == true)
+  if (isSetUp == true) // Listen to UDP
   {
+    //if eeprom holds valid ssid && password Listen to UDP
     int packetSize = Udp.parsePacket();
 
     if (packetSize) 
     {
-      DBG("Received packet of size ");
-      DBG(packetSize);
-      DBG("From ");
+      //DBG("Received packet of size ");
+      //DBG(packetSize);
+      //DBG("From ");
       IPAddress remoteIp = Udp.remoteIP();
-      DBG(remoteIp);
-      DBG(", port ");
-      DBG(Udp.remotePort());
+      //DBG(remoteIp);
+      //DBG(", port ");
+      //DBG(Udp.remotePort());
 
       // read the packet into packetBufffer
       int len = Udp.read(packetBuffer, 64);
@@ -448,7 +516,7 @@ void loop()
         packetBuffer[len] = 0;
       }
       
-      DBG("Contents:");
+     // DBG("Contents:");
       DBG(packetBuffer);
 
       // send a reply, to the IP address and port that sent us the packet we received
@@ -468,7 +536,7 @@ void loop()
         {
           EEPROM.write(i, 0);  
         }
-        Serial.println("EEPROM cleared");
+     DBG("EEPROM cleared");
         EEPROM.commit();
       }
 
@@ -476,10 +544,15 @@ void loop()
       {
        execOTA();
       }
+      if (readout == String(moduleNumber)+"focus" )
+      {
+        bin = "/focus.bin";
+        execOTA();
+      }
 
       if (readout == String(moduleNumber)+"ftp" || readout == "ALLftp")
       {
-        Serial.println("ftp:" );
+      DBG("ftp:" );
          for (int i = 0; i < 15; i++)
          {
            Serial.print(ftpip[i]);
@@ -492,7 +565,7 @@ void loop()
           DBG("Quality set to "+ String(jpegQ));
           photo();
           
-          Serial.println(String(delayTime) +"ms to upload");
+       DBG(String(delayTime) +"ms to upload");
           delay(delayTime);
           direct();
         return;
@@ -504,7 +577,7 @@ void loop()
         brightness = readout.toInt();
         EEPROM.write(Brightaddr, brightness);
         EEPROM.commit();
-        Serial.println("Brightness set to : "+String(brightness));
+       DBG("Brightness set to : "+String(brightness));
         return;
       }
 
@@ -542,7 +615,7 @@ void loop()
         readout.toCharArray(tmp, lgt);
         EEPROM.writeString(ssidAddr,tmp);
         EEPROM.commit();
-        Serial.println("to " + EEPROM.readString(ssidAddr) );
+      DBG("to " + EEPROM.readString(ssidAddr) );
         return;
       }
 
@@ -555,10 +628,9 @@ void loop()
         readout.toCharArray(tmp, lgt);
         EEPROM.writeString(passAddr,tmp);
         EEPROM.commit();
-        Serial.println("to " + EEPROM.readString(passAddr) );
+      DBG("to " + EEPROM.readString(passAddr) );
         return;
       }
-
 
         if (readout.indexOf("CT") >= 0) 
       {
@@ -566,7 +638,7 @@ void loop()
         counter = readout.toInt();
         EEPROM.write(Countaddr, counter);
         EEPROM.commit();
-        Serial.println("COUNTER SET TO "+String(counter));
+      DBG("COUNTER SET TO "+String(counter));
         return;
       }
 
@@ -574,97 +646,38 @@ void loop()
       {
         readout.remove(0,3);
 
-        Serial.println( "Teststring : " +String(readout));
+       DBG( "Teststring : " +String(readout));
         return;
       }
 
         if (readout == String(moduleNumber)+"read")
       {
-        Serial.println("SSID = ");
-        String test = EEPROM.readString(ssidAddr);
-        Serial.println(test);
+       DBG("SSID = ");
+        String temp1 = EEPROM.readString(ssidAddr);
+       DBG(temp1);
         return;
       }
 
         if (readout == String(moduleNumber)+"heap")
       {
         delay(50);
-        Serial.println(String(ESP.getFreeHeap()));
+       DBG(String(ESP.getFreeHeap()));
         return;
       }
 
-    
-
-      
-
       if (readout == String(moduleNumber) + "id")
       {
+        blinkBurst(4, 100);
+        sendIP();
         
-        char response[20];
-        String tmp = WiFi.localIP().toString();
-        
-        tmp.toCharArray(response, 20);
-        Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-
-        while (response[i] != 0) 
-        Udp.write((uint8_t)response[i++]);
-        Udp.endPacket();
-        i=0;
-        blinkBurst(100, 50);
-        
-        return;
       }
 
         if (readout == "ALLreboot" || readout == String(moduleNumber)+"reboot")
       {
         ESP.restart();
         return;
-      }
-        
-
-      /*   if (readout == "ALLota" || readout == String(moduleNumber)+"ota")
-      {
-        ledcWrite(ledCHannel, 0);
-        OTA_flag = true;
-        ArduinoOTA
-      .onStart([]() {
-        String type;
-        if (ArduinoOTA.getCommand() == U_FLASH)
-          type = "sketch";
-        else // U_SPIFFS
-          type = "filesystem";
-
-        // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-        Serial.println("Start updating " + type);
-      })
-      .onEnd([]() {
-        Serial.println("\nEnd");
-      })
-      .onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-      })
-      .onError([](ota_error_t error) {
-        Serial.printf("Error[%u]: ", error);
-        if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-        else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-        else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-        else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-        else if (error == OTA_END_ERROR) Serial.println("End Failed");
-      });
-
-        ArduinoOTA.begin();
-        Serial.println("OTA configured");
-
-        } */
-      }
-
-
-    if (counter == 255)
-    {
-      counter = 1;
-      EEPROM.write(Countaddr, counter);
-      EEPROM.commit();
-    }  
+      } 
+    }
       
     if (!WiFi.isConnected() && iignore == false)
     {
@@ -672,40 +685,31 @@ void loop()
       ESP.restart();
     }
       ledcWrite(ledCHannel,brightness);
-
-    if (OTA_flag == true);
-    {
-    //ArduinoOTA.handle(); 
-  
-    }
   }
-  else
+  else // if module has no ssid in eeprom - qr recogniser is running
   {
   //wait for QR code payload 
     if (payload_ready == true)
     {
-      parseData();
+      convertPayload(); 
       payload_ready = false;
     }
   }
 }
-
-void parseData() 
+// Chop up qr payload String to single values and store them in eeprom 
+//TODO: redo this...
+void convertPayload() 
 {
-
   qrData = (char*)mypayload;
   
-// Chop up String to single variable values
- 
-
     String ssidtmp = qrData;
-    ssidtmp.remove(qrData.indexOf("\n"), qrData.length());
+    ssidtmp.remove(qrData.indexOf("\n"), qrData.length()+1);
     EEPROM.writeString(ssidAddr,ssidtmp);
     EEPROM.commit();
 
     String passtmp = qrData;
     passtmp.remove(0, passtmp.indexOf("\n")+1);
-    passtmp.remove(passtmp.indexOf("\n"),passtmp.length());
+    passtmp.remove(passtmp.indexOf("\n"),passtmp.length()+1);
 
     EEPROM.writeString(passAddr, passtmp);
     EEPROM.commit();
@@ -730,28 +734,33 @@ void parseData()
     
     EEPROM.writeBool(configModeAddr, true);
     EEPROM.commit();
+    
+    //indicate QR succesfully read
+    blinkBurst(5, 300);
+
     ESP.restart();
 }
 
-void execOTA() {
+void execOTA() 
+{
  
   int port = 80;
   
-  Serial.println("Connecting to: " + host);
+  DBG("Connecting to: " + host);
 
   if (client.connect(host.c_str(), port)) {
-    Serial.println("Fetching Bin: " + bin);
+   DBG("Fetching Bin: " + bin);
 
     client.print(String("GET ") + bin + " HTTP/1.1\r\n" +
                  "Host: " + host + "\r\n" +
                  "Cache-Control: no-cache\r\n" +
                  "Connection: close\r\n\r\n");
 
-// Check what is being sent
-//    Serial.print(String("GET ") + url + " HTTP/1.1\r\n" +
-//                 "Host: " + host + "\r\n" +
-//                 "Cache-Control: no-cache\r\n" +
-//                 "Connection: close\r\n\r\n");
+      // Check what is being sent
+      //    Serial.print(String("GET ") + url + " HTTP/1.1\r\n" +
+      //                 "Host: " + host + "\r\n" +
+      //                 "Cache-Control: no-cache\r\n" +
+      //                 "Connection: close\r\n\r\n");
 
     delay(100);
     while (client.available()) {
@@ -765,7 +774,7 @@ void execOTA() {
 
       if (line.startsWith("HTTP/1.1")) {
         if (line.indexOf("200") < 0) {
-          Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
+        DBG("Got a non 200 status code from server. Exiting OTA Update.");
           break;
         }
       }
@@ -774,46 +783,89 @@ void execOTA() {
       // Start with content length
       if (line.startsWith("Content-Length: ")) {
         contentLength = atoi((getHeaderValue(line, "Content-Length: ")).c_str());
-        Serial.println("Got " + String(contentLength) + " bytes from server");
+       DBG("Got " + String(contentLength) + " bytes from server");
       }
 
       // Next, the content type
       if (line.startsWith("Content-Type: ")) {
         String contentType = getHeaderValue(line, "Content-Type: ");
-        Serial.println("Got " + String(contentType) + " payload.");
+       DBG("Got " + String(contentType) + " payload.");
         if (contentType == "application/octet-stream") {
           isValidContentType = true;
         }
       }
     }
-  } else {
-    Serial.println("Connection to " + host + " failed. Please check your setup");
+  } 
+  else 
+  {
+   DBG("Connection to " + host + " failed. Please check your setup");
     // retry??
     // execOTA();
   }
-  Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
+
+ DBG("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
 
   // check contentLength and content type
   if (contentLength && isValidContentType) {
     bool canBegin = Update.begin(contentLength);
     
-    if (canBegin) {
-      Serial.println("Begin OTA. Things might be quite for a while.. Patience!");
+    if (canBegin) 
+    {
+     DBG("Begin OTA. Things might be quite for a while.. Patience!");
       size_t written = Update.writeStream(client);
-      Serial.println("written : " + String(written));
-      if (Update.end()) {
-        Serial.println("OTA done!");
-        if (Update.isFinished()) {
-          Serial.println("Update successfully completed. Rebooting.");
+     DBG("written : " + String(written));
+      if (Update.end()) 
+      {
+       DBG("OTA done!");
+        if (Update.isFinished()) 
+        {
+         DBG("Update successfully completed. Rebooting.");
           //preferences.putBool("isOTADone", true);
           ESP.restart();
         }
-      } else {
-        Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+      } 
+      else 
+      {
+       DBG("Error Occurred. Error #: " + String(Update.getError()));
       }
     }
-  } else {
-    Serial.println("There was no content in the response");
+  } 
+  else 
+  {
+   DBG("There was no content in the response");
     client.flush();
   }
+}
+void sendIP()
+{
+  int i=0;
+  char response[20];
+  String tmp = WiFi.localIP().toString();
+
+  tmp.toCharArray(response, 20);
+  Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+
+  while (response[i] != 0)
+    Udp.write((uint8_t)response[i++]);
+  Udp.endPacket();
+  i = 0;
+  
+  return;
+}
+
+void sendModuleNr()
+{
+  int i=0;
+  char response[20];
+  String tmp = String(moduleNumber);
+
+  tmp.toCharArray(response, 20);
+  Udp.beginPacket(IPAddress(255,255,255,255), 6666);
+
+  while (response[i] != 0)
+    Udp.write((uint8_t)response[i++]);
+  Udp.endPacket();
+  i = 0;
+  
+  return;
 }
