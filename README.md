@@ -4,14 +4,17 @@
 I figured I leave the original version here (PoC) - it works, is a little easier for beginners and doesn't need a special fixture
 
 Version 3
+- depricated
 - up to 60 cams
 passive upload (files have to be pulled via FTP script)
 
 Version 4
+-depricated
 - not working
 - experimental BLE mesh 
 
 Verison 5 
+-depricated
 - 60 cams (or whatever your wifi can handle)
 - Trigger via UDP
 - Config via UDP
@@ -21,6 +24,7 @@ Verison 5
 Verion 6 
  - http update from AWS S3 bucket ("ALLupdate") 
  - setup with Medusa utility app neccesary 
+ - focus mode (live cam example) - be aware of static ip
  
 
 ### Proof of concept for an array of ESP32's used as a photogrammetry 3D-Scanner
