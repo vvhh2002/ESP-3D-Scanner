@@ -106,7 +106,7 @@ There is also a ton of free other sofware - google will help you out.
 
 You can either clone the setup via this qr code 
 
-<img src="ESP%203D-Scanner/PoC/pics/3d_SCANNER%20BLYNK.PNG" width="200">
+<img src="ESP-3D-Scanner/PoC/pics/3d_SCANNER BLYNK.PNG" width="200">
 
 or for better understanding:
 
