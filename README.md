@@ -4,13 +4,12 @@
 I figured I leave the original version here (PoC) - it works, is a little easier for beginners and doesn't need a special fixture
 
 Version 3
--depricated
+-depricated (file transfer too slow / sd-card too slow)
 - up to 60 cams
 passive upload (files have to be pulled via FTP script)
 
 Version 4
--depricated
-- not working
+-depricated (AI-Thinker doesnt have enough memory)
 - experimental BLE mesh 
 
 Verison 5 
@@ -22,6 +21,7 @@ Verison 5
 - OTA updates
 
 Verion 6 
+ - based on V5
  - http update from AWS S3 bucket ("ALLupdate") 
  - setup with Medusa utility app neccesary 
  - focus mode (live cam example) - be aware of static ip
@@ -61,7 +61,7 @@ The original code was slighly changed so:
 
 ### How to Arrange all units on the cardboard. 
 
-<img src="ESP%203D-Scanner/pics/IMG_2612.jpg" width="800">
+<img src="ESP%203D-Scanner/PoC/pics/IMG_2612.jpg" width="800">
 
 
 # !!! Be aware! If you use wrong cables you might burn down your house! 5v seems harmless but the amps arent! Go and ask an adult like me ;)!!!
@@ -70,7 +70,7 @@ The original code was slighly changed so:
 
 ## Connector: You also need some high amp connector that doesnt go poof. I used a XT60.
 
-<img src="ESP%203D-Scanner/pics/IMG_2613.jpg" width="800">
+<img src="ESP%203D-Scanner/PoC/pics/IMG_2613.jpg" width="800">
 
 - 20+ dupont cables female to female preferably in red and black
 
@@ -79,7 +79,7 @@ The original code was slighly changed so:
 Wall outlet ---220V, 10A--- PSU (connector line one/ fist V-, first V+) --- 5V, 10A --- Connector --- (solder 10 dupont cables to each ground and power of the connector.) single dupont connecton --- ESP
 
 
-<img src="ESP%203D-Scanner/pics/IMG_2614.jpg" width="800">
+<img src="ESP%203D-Scanner/PoC/pics/IMG_2614.jpg" width="800">
 
 
 
@@ -106,7 +106,7 @@ There is also a ton of free other sofware - google will help you out.
 
 You can either clone the setup via this qr code 
 
-<img src="ESP%203D-Scanner/pics/3d_SCANNER%20BLYNK.PNG" width="200">
+<img src="ESP%203D-Scanner/PoC/pics/3d_SCANNER%20BLYNK.PNG" width="200">
 
 or for better understanding:
 
