@@ -83,11 +83,11 @@ static void dump_cells(const struct quirc_code *code)
 
 static void dump_data(const struct quirc_data *data)
 {
-    printf("    Version: %d\n", data->version);
-    printf("    ECC level: %c\n", "MLHQ"[data->ecc_level]);
-    printf("    Mask: %d\n", data->mask);
-    printf("    Data type: %d (%s)\n", data->data_type,
-           data_type_str(data->data_type));
+  //  printf("    Version: %d\n", data->version);
+  //  printf("    ECC level: %c\n", "MLHQ"[data->ecc_level]);
+  //  printf("    Mask: %d\n", data->mask);
+  //  printf("    Data type: %d (%s)\n", data->data_type,
+   //        data_type_str(data->data_type));
     printf("    Length: %d\n", data->payload_len);
     printf("\033[31m    Payload chars: %s\n", data->payload);
    
@@ -130,7 +130,7 @@ static void dump_info(struct quirc *q, uint8_t count)
         if (err) {
             printf("  Decoding FAILED: %s\n", quirc_strerror(err));
         } else {
-            printf("  Decoding successful:\n");
+         //   printf("  Decoding successful:\n");
             printf("    %d cells, corners:", code.size);
             for (uint8_t u = 0; u < 4; u++) {
                 printf(" (%d,%d)", code.corners[u].x, code.corners[u].y);
@@ -148,7 +148,7 @@ void qr_recoginze(void *parameter)
     // Use QVGA Size currently, but quirc can support other frame size.(eg: 
     // FRAMESIZE_QVGA,FRAMESIZE_HQVGA,FRAMESIZE_QCIF,FRAMESIZE_QQVGA2,FRAMESIZE_QQVGA,etc)
     if (camera_config->frame_size > FRAMESIZE_SVGA) {
-        ESP_LOGE(TAG, "Camera Frame Size err %d, support maxsize is QVGA", (camera_config->frame_size));
+      //  ESP_LOGE(TAG, "Camera Frame Size err %d, support maxsize is QVGA", (camera_config->frame_size));
         vTaskDelete(NULL);
     }
 
@@ -162,10 +162,10 @@ void qr_recoginze(void *parameter)
     uint16_t old_height = 0;
 
     // Construct a new QR-code recognizer.
-    ESP_LOGI(TAG, "Construct a new QR-code recognizer(quirc).");
+ //   ESP_LOGI(TAG, "Construct a new QR-code recognizer(quirc).");
     qr_recognizer = quirc_new();
     if (!qr_recognizer) {
-        ESP_LOGE(TAG, "Can't create quirc object");
+      //  ESP_LOGE(TAG, "Can't create quirc object");
        
     }
 
@@ -178,7 +178,7 @@ void qr_recoginze(void *parameter)
         fb = esp_camera_fb_get();
         
         if (!fb) {
-            ESP_LOGE(TAG, "Camera capture failed");
+          //  ESP_LOGE(TAG, "Camera capture failed");
             continue;
         }
 
@@ -189,7 +189,7 @@ void qr_recoginze(void *parameter)
             // Resize the QR-code recognizer.
             if (quirc_resize(qr_recognizer, fb->width, fb->height) < 0) {
                 
-                ESP_LOGE(TAG, "Resize the QR-code recognizer err (cannot allocate memory).");
+                //ESP_LOGE(TAG, "Resize the QR-code recognizer err (cannot allocate memory).");
                 
                 continue;
             } else {
@@ -215,7 +215,7 @@ void qr_recoginze(void *parameter)
         // Return the number of QR-codes identified in the last processed image.
         id_count = quirc_count(qr_recognizer);
         if (id_count == 0) {
-            ESP_LOGE(TAG, "Error: not a valid qrcode");
+            ESP_LOGE(TAG, "Waiting for QR...");
             esp_camera_fb_return(fb);
             continue;
         }
@@ -226,7 +226,7 @@ void qr_recoginze(void *parameter)
     }
     // Destroy QR-Code recognizer (quirc)
     quirc_destroy(qr_recognizer);
-    ESP_LOGE(TAG, "Deconstruct QR-Code recognizer(quirc)");
+    //ESP_LOGE(TAG, "Deconstruct QR-Code recognizer(quirc)");
     vTaskDelete(NULL);
 }
 
