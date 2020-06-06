@@ -1,13 +1,12 @@
 /******************************************************************************
-Versioin 6 Controll functions via UDP
+Medusa Firmware V6.1
 
 Device setup: 
 
 Connect 5V to 5V, GND to GND
-TODO: typcasting qr payload
-TODO: change delay() for while millis
+
+
 TODO: change EEPROM for preferences
-License 
 ******************************************************************************/
 
 #include <NTPClient.h>
@@ -33,11 +32,9 @@ License
 #include "Update.h"
 
 
-//#define DEGUB_ESP
+#define DEGUB_ESP
 
-// Connection timeout;
 #define CON_TIMEOUT   10*1000   // milliseconds
-
 #define EEPROM_SIZE 512
 #define CAMERA_MODULE_OV3660
 
@@ -50,12 +47,11 @@ License
 //EEPROM adresses
 byte Countaddr = 0;
 byte Brightaddr = 10;
-byte Qualityaddr = 20;
 byte updelayAddr = 30;
 byte connCountAddr = 40;
 byte bootcountAddr = 50;
 byte moduleNraddress = 60;
-int ftpAddr = 70;
+byte ftpAddr = 70;
 byte ov3660addr = 100;
 byte ssidAddr = 101;
 byte passAddr = 151;
@@ -63,20 +59,18 @@ byte configModeAddr = 200;
 
 //FTP credentials
 char ftpip[] = "";
-char ftp_user[] = "Medusa";
-char ftp_pass[]   = "Medusa";
+static char ftp_user[] = "Medusa";
+static char ftp_pass[]   = "Medusa";
 ESP32_FTPClient ftp (ftpip, ftp_user, ftp_pass);
 
 // UDP
 uint16_t port = 6666;
 IPAddress groupIpAddress(233,233,233,233);
-
 unsigned long tim=micros();
 unsigned long tic=micros();
 int packageCount = 0;
 byte bootcount = 0;
-int repeats;
-int mtime;
+
 
 //camera stuff
 camera_fb_t *fb = NULL;  //frame buffer
@@ -89,42 +83,32 @@ WiFiClient client;
 NTPClient timeClient(ntp);
 
 //buffers
-char packetBuffer[1024]; //buffer to hold incoming packet
-char ReplyBuffer[1024] = "y";       // a string to send back
+char packetBuffer[512]; //buffer to hold incoming packet
+char ReplyBuffer[4] = "y";       // a string to send back
 String readout;     //udp payload to string
-String qrData = ""; //qr payload to string
-String myip = "";
-String data_type_str;
-
-// Voids
-
-void blinkBurst(int, int);
-void convertPayload();
-void execOTA();
-void duo();
-void duodirect();
-void startCameraServer();
+String moduleIP = "";
 
 //variables
 long contentLength = 0;
-int moduleNumber; 
-int freq = 5000; //ledc
+String moduleNumber; 
 byte brightness = 3;
 byte jpegQ = 3;
 byte counter = 0; //image counter  
-byte ledCHannel = 2;
-byte res = 8; //ledc
-byte ledPin = 4;
-byte updelay; //waiting time for upload based on module number and multiplicator updelay
-
 
 //flags
 bool is3660 = false;
 bool isSetUp;
 bool startqr = false;
-
 bool isstreaming = false;  //OTA
 bool isValidContentType = false; //OTA
+
+// Voids
+void blinkBurst(int, int);
+void convertPayload();
+void execOTA();
+void scan();
+void upload();
+void startCameraServer();
 
 // S3 Bucket Config
 String host = "medusafirmware.s3.eu-central-1.amazonaws.com"; // Host => bucket-name.s3.region.amazonaws.com
@@ -140,6 +124,7 @@ String getHeaderValue(String header, String headerName)
 
 void setup()
 {
+  
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   #ifdef DEGUB_ESP
     Serial.begin(115200);
@@ -149,8 +134,8 @@ void setup()
   DBG("Module configured: ");
   DBG(isSetUp);
   //LED Stuff
-  ledcAttachPin(ledPin, ledCHannel);
-  ledcSetup(ledCHannel, freq, res);
+  ledcAttachPin(4, 2);
+  ledcSetup(2, 5000, 8);
 
 //Load settings from eeprom // check for extreme values
   EEPROM.begin(EEPROM_SIZE);
@@ -159,29 +144,29 @@ void setup()
 
   char ssid[EEPROM.readString(ssidAddr).length() + 1];
   EEPROM.readString(ssidAddr).toCharArray(ssid, EEPROM.readString(ssidAddr).length()+1);
-  DBG("SSID in EEPROM: " + EEPROM.readString(ssidAddr) +"xxx ");
+  DBG("SSID in EEPROM: " + EEPROM.readString(ssidAddr));
 
   char pass[EEPROM.readString(passAddr).length() +1];
   EEPROM.readString(passAddr).toCharArray(pass, EEPROM.readString(passAddr).length()+1);
-  DBG("PASS in EEPROM: " + EEPROM.readString(passAddr) +"xxx ");
+  DBG("PASS chars:" + String(EEPROM.readString(passAddr).length()) );
 
   ftpip[EEPROM.readString(ftpAddr).length()];
   EEPROM.readString(ftpAddr).toCharArray(ftpip,EEPROM.readString(ftpAddr).length()+1);
 
   // check for valid wifi ssid
   if( *ssid == 0x00 || strlen(ssid) > 31) {
-          log_e("NO SSID IN EEPROM!");
+          DBG("NO SSID IN EEPROM!");
           isSetUp = false;
           DBG("SSID ERROR");
   }
   // check for valid wifi pass
-  if(pass && strlen(pass) > 64) {
-          log_e("passphrase too long!");
+  if(pass && strlen(pass) > 64 || pass && strlen(pass)<1) {
+          DBG("PS error!");
           isSetUp = false;
-          DBG("PASS error");
+          DBG("PS error");
   }
 
-  moduleNumber = EEPROM.read(moduleNraddress);
+  moduleNumber = EEPROM.readString(moduleNraddress);
   is3660 = EEPROM.readBool(ov3660addr);
 
   if (is3660 == true)
@@ -203,19 +188,6 @@ void setup()
 
   brightness = EEPROM.read(Brightaddr);
 
-  jpegQ = EEPROM.read(Qualityaddr);
-    if (jpegQ < 1 || jpegQ > 254)
-    {
-      jpegQ = 4;
-    }
-
-  updelay = EEPROM.read(updelayAddr);
-    if (updelay > 3)
-    {
-      updelay = 1;
-      EEPROM.write(updelayAddr, 2);
-      EEPROM.commit();
-    }
 
   bootcount = EEPROM.read(bootcountAddr);
 
@@ -378,11 +350,11 @@ void setup()
 
     while ( WiFi.status() != WL_CONNECTED && millis() < CON_TIMEOUT )
     {
-      ledcWrite(ledCHannel,10);
+      ledcWrite(2,10);
       delay(250);
       DBG(".");
       
-      ledcWrite(ledCHannel,0);
+      ledcWrite(2,0);
       delay(250);
     }
 
@@ -414,13 +386,14 @@ void setup()
 
       //indicate Scanmode ready
       blinkBurst(3, 450);
-  
+      DBG("ModuleNR: ");
+      DBG(moduleNumber);
       DBG("Synching with NTP...");
       timeClient.begin();
       DBG("Flash speed:");
       DBG(ESP.getFlashChipSpeed());
-      myip = WiFi.localIP().toString();
-      DBG(myip);
+      moduleIP = WiFi.localIP().toString();
+      DBG(moduleIP);
   }
 }
 
@@ -428,7 +401,7 @@ void setup()
 
 
 
-void duo() 
+void scan() 
 {
 
  sensor_t *s = esp_camera_sensor_get();
@@ -459,22 +432,22 @@ void duo()
   } 
 }
 
-void blinkBurst(int repeats, int mtime) //indicate what module is doing
+void blinkBurst(int repeats, int mtime) 
 {
   for (int i = 0; i < repeats; i++)
   {
-    ledcWrite(ledCHannel, 20);
+    ledcWrite(2, 20);
     delay(mtime);
-    ledcWrite(ledCHannel,0);
+    ledcWrite(2,0);
     delay(mtime);
   }
 }
 
 
 
-void duodirect() //send framebuffer as file via ftp
+void upload() 
 { 
-  String pic_name =String(moduleNumber)+ "@" + String(myip);
+  String pic_name =String(moduleNumber)+ "@" + String(moduleIP);
   String path = "/images/img" + String(counter) +"/col/"+String(pic_name) + ".jpg"; 
 
   String ftpprobestring = "/images/img" + String(counter) ;
@@ -535,25 +508,16 @@ void loop()
     int packetSize = Udp.parsePacket();
     if (packetSize) 
     {
-      //DBG("Received packet of size ");
-      //DBG(packetSize);
-      //DBG("From ");
       IPAddress remoteIp = Udp.remoteIP();
-      //DBG(remoteIp);
-      //DBG(", port ");
-      //DBG(Udp.remotePort());
-
-      // read the packet into packetBufffer
       int len = Udp.read(packetBuffer, 64);
-      
+  
       if (len > 0) 
       {
         packetBuffer[len] = 0;
       }
       
       DBG(packetBuffer);
-
-      // send a reply, to the IP address and port that sent us the packet we received
+      //Reply
       Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
       int i = 0;
       while (ReplyBuffer[i] != 0)
@@ -563,7 +527,7 @@ void loop()
       readout = packetBuffer;
 
       //------UDP COMMANDS------
-      // Erase EEPROM -> wifi cred, moduleNr and ftp get erased, qr-mode on next boot
+      // Erase EEPROM
       if (readout == String(moduleNumber)+"erase" || readout == "ALLerase")
       {
         for (int i = 0 ; i < EEPROM_SIZE ; i++) 
@@ -581,7 +545,7 @@ void loop()
       }
 
       //Start live cam server 
-      if (readout == myip+"focus" || readout == String(moduleNumber) + "focus" )
+      if (readout == moduleIP+"focus" || readout == String(moduleNumber) + "focus" )
       {
         if (isstreaming == false)
         {
@@ -612,11 +576,11 @@ void loop()
         counter = readout.toInt();
         EEPROM.write(Countaddr, counter);
         EEPROM.commit();
-      DBG("COUNTER SET TO "+String(counter));
+        DBG("COUNTER SET TO "+String(counter));
         return;
       }
-      //synchronized shoot at time from app eg: "shootat:1590064120"
-      //ESP gets current s since jan 1, 1970 and compares to defined time - if time is met execute scan
+      
+      
       if (readout.indexOf("shootat") >=0)
       {
         readout.remove(0, 8);
@@ -635,13 +599,12 @@ void loop()
         {
           delay(waittime);
           DBG("Scan"); 
-          duo();
-          delay(20 * moduleNumber);
-          duodirect();
+          scan();
+          delay(20 * moduleNumber.toInt());
+          upload();
           DBG("Scan Done");
           blinkBurst(2, 100);
           ESP.restart();
-
         }
         else
         {
@@ -675,12 +638,12 @@ void loop()
         }
       }
 
-      if (readout == String(moduleNumber) + "id")
+      if (readout == String(moduleNumber) + "id" || readout == moduleIP+"id")
       {
         blinkBurst(4, 100);
       }
 
-      if (readout == "ALLreboot" || readout == String(moduleNumber)+"reboot")
+      if (readout == "ALLreboot" || readout == String(moduleNumber)+"reboot" || readout == moduleIP+"reboot")
       {
         ESP.restart();
         return;
@@ -692,9 +655,9 @@ void loop()
       EEPROM.commit();
       ESP.restart();
     }
-      ledcWrite(ledCHannel,brightness);
+      ledcWrite(2,brightness);
   }
-  else // if module has no ssid/pw in eeprom - qr recogniser is running
+  else 
   {
   //wait for QR code payload 
     if (payload_ready == true)
@@ -707,48 +670,25 @@ void loop()
 ///////// END OF LOOP
 
 // Chop up qr payload String to single values and store them in eeprom 
-//TODO: redo this...
+
 void convertPayload() 
 {
-  qrData = (char*)mypayload;
+  EEPROM.writeString(ssidAddr, strtok((char *)mypayload, "\n"));
+
+  EEPROM.writeString(passAddr,strtok(NULL, "\n"));
+
+  EEPROM.writeString(moduleNraddress,strtok(NULL, "\n"));
+
+  EEPROM.writeString(ftpAddr, strtok(NULL, "\n"));
+
+ 
+  EEPROM.writeBool(configModeAddr, true);
+  EEPROM.commit(); 
+
+  //indicate QR succesfully read
+  blinkBurst(2, 300);
   
-    String ssidtmp = qrData;
-    ssidtmp.remove(qrData.indexOf("\n"), qrData.length()+1);
-    EEPROM.writeString(ssidAddr,ssidtmp);
-    EEPROM.commit();
-
-    String passtmp = qrData;
-    passtmp.remove(0, passtmp.indexOf("\n")+1);
-    passtmp.remove(passtmp.indexOf("\n"),passtmp.length()+1);
-
-    EEPROM.writeString(passAddr, passtmp);
-    EEPROM.commit();
-
-    String modulenrtmp = qrData;
-    modulenrtmp.remove(0, modulenrtmp.indexOf("\n") + 1);
-    modulenrtmp.remove(0, modulenrtmp.indexOf("\n") + 1);
-    modulenrtmp.remove(modulenrtmp.indexOf("\n") , modulenrtmp.length());
-    int modNRINT = modulenrtmp.toInt();
-
-    EEPROM.write(moduleNraddress, modNRINT);
-    EEPROM.commit();
-    
-    String ftptmp = qrData;
-    ftptmp.remove(0, ftptmp.indexOf("\n") + 1);
-    ftptmp.remove(0, ftptmp.indexOf("\n") + 1);
-    ftptmp.remove(0, ftptmp.indexOf("\n") + 1);
-    ftptmp.remove(ftptmp.indexOf("\n") , ftptmp.length());
-    
-    EEPROM.writeString(ftpAddr, ftptmp);
-    EEPROM.commit();
-    
-    EEPROM.writeBool(configModeAddr, true);
-    EEPROM.commit();
-    
-    //indicate QR succesfully read
-    blinkBurst(2, 300);
-
-    ESP.restart();
+  ESP.restart();
 }
 
 void execOTA() 
@@ -803,8 +743,6 @@ void execOTA()
   else 
   {
    DBG("Connection to " + host + " failed. Please check your setup");
-    // retry??
-    // execOTA();
    blinkBurst(6, 200);
   }
 
