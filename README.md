@@ -12,7 +12,7 @@ Version 4
 -depricated (AI-Thinker doesnt have enough memory)
 - experimental BLE mesh 
 
-Verison 5 
+Version 5 
 -depricated
 - 60 cams (or whatever your wifi can handle)
 - Trigger via UDP
@@ -20,12 +20,18 @@ Verison 5
 - Active upload via FTP (trigger scan -> upload)
 - OTA updates
 
-Verion 6 
+Version 6
  - based on V5
  - http update from AWS S3 bucket ("ALLupdate") 
  - setup with Medusa utility app neccesary 
  - focus mode (live cam example) - be aware of static ip
  
+Version 6.1
+- focus mode now integrated (removed facial recognition, ip again dynamic)
+- flash speed increased to 80MHZ
+- jpeg compression has fixed value (1)
+- modules synched via ntp
+- removed redundant functionality 
 
 ### Proof of concept for an array of ESP32's used as a photogrammetry 3D-Scanner
 Little disclaimer: I'm a total noob. But I figured this is actually so easy, other total beginners might give it a shot, thus it might be a little over explained for some.
