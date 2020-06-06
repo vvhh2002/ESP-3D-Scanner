@@ -4,8 +4,11 @@
 Here are the working iterations of firmware written for the ESP 3D scanner.
 In case I want to retry an earlier approach.  
 
+PoC: 
+- 10 cams triggered via Blynk
+
 Version 3
-- depricated (file transfer too slow / sd-card too slow)
+- deprecated (file transfer too slow / sd-card too slow)
 - up to 60 cams
 passive upload (files have to be pulled via FTP script)
 
@@ -14,7 +17,7 @@ Version 4
 - experimental BLE mesh 
 
 Version 5 
-- depricated
+- deprecated 
 - 60 cams (or whatever your wifi can handle)
 - Trigger via UDP
 - Config via UDP
