@@ -1,19 +1,20 @@
 # ESP-3D-Scanner
 
 ## Versions
-I figured I leave the original version here (PoC) - it works, is a little easier for beginners and doesn't need a special fixture
+Here are the working iterations of firmware written for the ESP 3D scanner.
+In case I want to retry an earlier approach.  
 
 Version 3
--depricated (file transfer too slow / sd-card too slow)
+- depricated (file transfer too slow / sd-card too slow)
 - up to 60 cams
 passive upload (files have to be pulled via FTP script)
 
 Version 4
--depricated (AI-Thinker doesnt have enough memory)
+- deprecated (AI-Thinker doesnt have enough memory)
 - experimental BLE mesh 
 
 Version 5 
--depricated
+- depricated
 - 60 cams (or whatever your wifi can handle)
 - Trigger via UDP
 - Config via UDP
